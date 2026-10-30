@@ -4,6 +4,12 @@ on:
   push:
     tags:
       - "v*.*.*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Tag to release'
+        required: false
+        default: 'v0.5.0'
 
 env:
   REGISTRY: ghcr.io
