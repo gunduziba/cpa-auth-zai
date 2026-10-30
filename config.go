@@ -13,6 +13,8 @@ import (
 type pluginSettings struct {
 	HistoryTimezone string `yaml:"history-timezone"`
 	APIKeyName      string `yaml:"api-key-name"`
+	APIKey          string `yaml:"api-key"`
+	AltAPIKey       string `yaml:"api_key"`
 }
 
 var settingsMu sync.RWMutex
@@ -48,6 +50,16 @@ func preferredAPIKeyName() string {
 		return name
 	}
 	return "cpa-auth-zai"
+}
+
+// configuredAPIKey returns the static API key from config, if set.
+func configuredAPIKey() string {
+	settingsMu.RLock()
+	defer settingsMu.RUnlock()
+	if key := strings.TrimSpace(settings.APIKey); key != "" {
+		return key
+	}
+	return strings.TrimSpace(settings.AltAPIKey)
 }
 
 // lifecycleConfigYAML extracts config_yaml from a register/reconfigure payload.

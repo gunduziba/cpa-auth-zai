@@ -61,6 +61,16 @@ func handleQuotaFetch(payload []byte) (any, error) {
 			storage, errParse = resolveStorageByIndex(request.AuthIndex)
 		}
 		if errParse != nil {
+			if configuredKey := configuredAPIKey(); configuredKey != "" {
+				storage = &zaiStorage{
+					Version: storageVersion,
+					Type:    providerID,
+					APIKey:  configuredKey,
+				}
+				errParse = nil
+			}
+		}
+		if errParse != nil {
 			hostLog(request.HostCallbackID, "warn", "z.ai quota fetch failed", map[string]any{"error": errParse.Error()})
 			return map[string]any{}, nil
 		}

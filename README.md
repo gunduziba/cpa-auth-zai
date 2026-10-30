@@ -44,6 +44,9 @@ plugins:
   configs:
     cpa-auth-zai:
       enabled: true
+      # Optional static z.ai API key (sk-...) to bypass browser OAuth login.
+      # When set, inference and quota requests will use this API key directly.
+      api-key: ""
       # Optional IANA zone for usage history when the request omits timezone.
       history-timezone: Europe/Bucharest
       # Exact project API-key name to reuse or create during login.
@@ -52,8 +55,8 @@ plugins:
 
 ## Features
 
-- `auth_provider`: hosted z.ai sign-in, CPA credential storage, and renewal through a new sign-in.
-- `model_provider`: live Coding Plan catalog from `api.z.ai/api/coding/paas/v4/models` with the OAuth-derived business token. No fixed-model fallback.
+- `auth_provider`: hosted z.ai sign-in, CPA credential storage, renewal through a new sign-in, or direct static `api-key` authentication (bypasses browser OAuth). Also supports importing credential files containing an `api_key` or `apiKey`.
+- `model_provider`: live Coding Plan catalog from `api.z.ai/api/coding/paas/v4/models` with the OAuth-derived business token or the direct API key. No fixed-model fallback.
 - `executor`: project API key plus optional `X-Zcode-Token`; CPA payload-format metadata selects:
   - Chat Completions: `/api/coding/paas/v4/chat/completions`.
   - OpenAI Responses: `/api/v1/responses`.

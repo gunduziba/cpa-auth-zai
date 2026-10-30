@@ -450,6 +450,9 @@ func handleAuthParse(payload []byte) (any, error) {
 	if errUnmarshal := json.Unmarshal(payload, &req); errUnmarshal != nil {
 		return nil, fmt.Errorf("decode auth.parse request: %w", errUnmarshal)
 	}
+	if req.Provider != "" && req.Provider != providerID {
+		return pluginapi.AuthParseResponse{Handled: false}, nil
+	}
 	storage, errParse := parseZaiStorage(req.RawJSON)
 	if errParse != nil {
 		return pluginapi.AuthParseResponse{Handled: false}, nil
@@ -460,11 +463,15 @@ func handleAuthParse(payload []byte) (any, error) {
 func authDataFromStorage(storage *zaiStorage) pluginapi.AuthData {
 	raw, _ := json.Marshal(storage)
 	id := storage.authID()
+	label := storage.accountLabel()
+	if label == "" {
+		label = "account"
+	}
 	return pluginapi.AuthData{
 		Provider:    providerID,
 		ID:          id,
 		FileName:    id + ".json",
-		Label:       "Z.ai " + storage.accountLabel(),
+		Label:       "Z.ai " + label,
 		StorageJSON: raw,
 		Metadata: map[string]any{
 			"type":            providerID,

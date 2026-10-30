@@ -32,14 +32,16 @@ const (
 const storageVersion = 1
 
 // zaiStorage is the provider-owned credential record persisted by CPA. Tokens
-// are kept by purpose; the provisioned API key is used only for inference.
+// are kept by purpose; the provisioned API key is used for inference.
 type zaiStorage struct {
 	Version          int    `json:"version"`
 	Type             string `json:"type"`
+	Provider         string `json:"provider,omitempty"`
 	OAuthAccessToken string `json:"oauth_access_token,omitempty"`
 	ZcodeJWT         string `json:"zcode_jwt,omitempty"`
 	BizAccessToken   string `json:"biz_access_token,omitempty"`
 	APIKey           string `json:"api_key,omitempty"`
+	Label            string `json:"label,omitempty"`
 	Email            string `json:"email,omitempty"`
 	UserID           string `json:"user_id,omitempty"`
 	OrganizationID   string `json:"organization_id,omitempty"`
@@ -48,17 +50,77 @@ type zaiStorage struct {
 	ExpiresAt        string `json:"expires_at,omitempty"`
 }
 
+type flexStorage struct {
+	Version          int    `json:"version"`
+	Type             string `json:"type"`
+	Provider         string `json:"provider"`
+	OAuthAccessToken string `json:"oauth_access_token"`
+	ZcodeJWT         string `json:"zcode_jwt"`
+	BizAccessToken   string `json:"biz_access_token"`
+	APIKey           string `json:"api_key"`
+	AltAPIKey        string `json:"apiKey"`
+	KebabAPIKey      string `json:"api-key"`
+	Label            string `json:"label"`
+	Email            string `json:"email"`
+	UserID           string `json:"user_id"`
+	OrganizationID   string `json:"organization_id"`
+	ProjectID        string `json:"project_id"`
+	ObtainedAt       string `json:"obtained_at"`
+	ExpiresAt        string `json:"expires_at"`
+}
+
 // errNoCredentials reports a storage record without usable login tokens.
 var errNoCredentials = fmt.Errorf("zai: stored credentials contain no login token")
 
 func parseZaiStorage(raw []byte) (*zaiStorage, error) {
-	var storage zaiStorage
-	if errUnmarshal := json.Unmarshal(raw, &storage); errUnmarshal != nil {
+	if len(raw) == 0 {
+		return nil, fmt.Errorf("zai: stored credentials are empty")
+	}
+	var flex flexStorage
+	if errUnmarshal := json.Unmarshal(raw, &flex); errUnmarshal != nil {
 		return nil, fmt.Errorf("zai: decode stored credentials: %w", errUnmarshal)
 	}
-	if storage.Type != providerID {
-		return nil, fmt.Errorf("zai: stored credentials have type %q", storage.Type)
+
+	storageType := strings.TrimSpace(flex.Type)
+	if storageType == "" {
+		storageType = strings.TrimSpace(flex.Provider)
 	}
+	if storageType == "" {
+		storageType = providerID
+	}
+	if storageType != providerID {
+		return nil, fmt.Errorf("zai: stored credentials have type %q", storageType)
+	}
+
+	apiKey := strings.TrimSpace(flex.APIKey)
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(flex.AltAPIKey)
+	}
+	if apiKey == "" {
+		apiKey = strings.TrimSpace(flex.KebabAPIKey)
+	}
+
+	version := flex.Version
+	if version == 0 {
+		version = storageVersion
+	}
+
+	storage := zaiStorage{
+		Version:          version,
+		Type:             providerID,
+		OAuthAccessToken: strings.TrimSpace(flex.OAuthAccessToken),
+		ZcodeJWT:         strings.TrimSpace(flex.ZcodeJWT),
+		BizAccessToken:   strings.TrimSpace(flex.BizAccessToken),
+		APIKey:           apiKey,
+		Label:            strings.TrimSpace(flex.Label),
+		Email:            strings.TrimSpace(flex.Email),
+		UserID:           strings.TrimSpace(flex.UserID),
+		OrganizationID:   strings.TrimSpace(flex.OrganizationID),
+		ProjectID:        strings.TrimSpace(flex.ProjectID),
+		ObtainedAt:       strings.TrimSpace(flex.ObtainedAt),
+		ExpiresAt:        strings.TrimSpace(flex.ExpiresAt),
+	}
+
 	if len(storage.bearerCandidates()) == 0 {
 		return nil, errNoCredentials
 	}
@@ -66,10 +128,11 @@ func parseZaiStorage(raw []byte) (*zaiStorage, error) {
 }
 
 // bearerCandidates lists login-derived tokens in preference order: the short
-// lived OAuth session token first, then the durable business token.
+// lived OAuth session token first, then the durable business token, the Zcode
+// JWT, and finally the direct API key.
 func (s *zaiStorage) bearerCandidates() []string {
-	out := make([]string, 0, 3)
-	for _, token := range []string{s.OAuthAccessToken, s.BizAccessToken, s.ZcodeJWT} {
+	out := make([]string, 0, 4)
+	for _, token := range []string{s.OAuthAccessToken, s.BizAccessToken, s.ZcodeJWT, s.APIKey} {
 		token = strings.TrimSpace(token)
 		if token != "" {
 			out = append(out, token)
@@ -79,10 +142,22 @@ func (s *zaiStorage) bearerCandidates() []string {
 }
 
 func (s *zaiStorage) accountLabel() string {
+	if s.Label != "" {
+		return s.Label
+	}
 	if s.Email != "" {
 		return s.Email
 	}
-	return s.UserID
+	if s.UserID != "" {
+		return s.UserID
+	}
+	if key := strings.TrimSpace(s.APIKey); key != "" {
+		if len(key) > 8 {
+			return "key-" + key[len(key)-6:]
+		}
+		return "key"
+	}
+	return ""
 }
 
 // authID derives the stable CPA auth identifier for the account.

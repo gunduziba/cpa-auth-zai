@@ -99,8 +99,8 @@ func TestErrorEnvelopeCarriesHTTPStatus(t *testing.T) {
 	}
 }
 
-// Acceptance: stored credentials are typed by purpose and never substituted
-// with API keys. A record without login tokens is rejected.
+// Acceptance: stored credentials are typed by purpose. A record without login
+// tokens or API key is rejected.
 func TestParseZaiStorageRequiresLoginToken(t *testing.T) {
 	valid, errParse := parseZaiStorage([]byte(`{"version":1,"type":"zai","oauth_access_token":"tok","email":"a@b.c"}`))
 	if errParse != nil {
@@ -118,6 +118,27 @@ func TestParseZaiStorageRequiresLoginToken(t *testing.T) {
 	}
 	if _, errParse := parseZaiStorage([]byte(`{"version":1,"type":"other","api_key":"k"}`)); errParse == nil {
 		t.Fatalf("foreign storage type must be rejected")
+	}
+
+	// 纯 API Key 凭据测试
+	pureKey, errKey := parseZaiStorage([]byte(`{"version":1,"type":"zai","api_key":"sk-zai-1234567890"}`))
+	if errKey != nil {
+		t.Fatalf("pure api_key rejected: %v", errKey)
+	}
+	if pureKey.APIKey != "sk-zai-1234567890" {
+		t.Fatalf("APIKey = %q", pureKey.APIKey)
+	}
+	if pureKey.authID() != "zai-key-567890" {
+		t.Fatalf("authID = %q, want zai-key-567890", pureKey.authID())
+	}
+
+	// 容错格式测试：只有 apiKey
+	flexKey, errFlex := parseZaiStorage([]byte(`{"apiKey":"sk-zai-abcdef9999"}`))
+	if errFlex != nil {
+		t.Fatalf("flex apiKey rejected: %v", errFlex)
+	}
+	if flexKey.APIKey != "sk-zai-abcdef9999" {
+		t.Fatalf("APIKey = %q", flexKey.APIKey)
 	}
 }
 

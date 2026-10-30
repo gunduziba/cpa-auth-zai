@@ -127,10 +127,15 @@ func streamingPayload(payload []byte) ([]byte, error) {
 }
 
 func inferenceAPIKey(storage *zaiStorage) (string, error) {
-	if apiKey := strings.TrimSpace(storage.APIKey); apiKey != "" {
+	if storage != nil {
+		if apiKey := strings.TrimSpace(storage.APIKey); apiKey != "" {
+			return apiKey, nil
+		}
+	}
+	if apiKey := configuredAPIKey(); apiKey != "" {
 		return apiKey, nil
 	}
-	return "", pluginabi.NewError("invalid_request", "z.ai credential has no API key; sign in again to provision one", http.StatusBadRequest)
+	return "", pluginabi.NewError("invalid_request", "z.ai credential has no API key; sign in again to provision one or set api-key in config", http.StatusBadRequest)
 }
 
 func sanitizeExecutorError(message, apiKey string) string {
@@ -201,7 +206,15 @@ func handleExecute(payload []byte) (any, error) {
 	}
 	storage, errParse := parseZaiStorage(request.StorageJSON)
 	if errParse != nil {
-		return nil, errParse
+		if configuredKey := configuredAPIKey(); configuredKey != "" {
+			storage = &zaiStorage{
+				Version: storageVersion,
+				Type:    providerID,
+				APIKey:  configuredKey,
+			}
+		} else {
+			return nil, errParse
+		}
 	}
 	apiKey, errKey := inferenceAPIKey(storage)
 	if errKey != nil {
@@ -250,7 +263,15 @@ func handleExecuteStream(payload []byte) (any, error) {
 	}
 	storage, errParse := parseZaiStorage(request.StorageJSON)
 	if errParse != nil {
-		return nil, errParse
+		if configuredKey := configuredAPIKey(); configuredKey != "" {
+			storage = &zaiStorage{
+				Version: storageVersion,
+				Type:    providerID,
+				APIKey:  configuredKey,
+			}
+		} else {
+			return nil, errParse
+		}
 	}
 	apiKey, errKey := inferenceAPIKey(storage)
 	if errKey != nil {

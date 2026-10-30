@@ -92,6 +92,46 @@ func TestPluginConfigAPIKeyName(t *testing.T) {
 	t.Fatalf("api-key-name config field not declared: %s", reg)
 }
 
+func TestPluginConfigStaticAPIKey(t *testing.T) {
+	t.Cleanup(func() { _ = parsePluginConfig(nil) })
+	if got := configuredAPIKey(); got != "" {
+		t.Fatalf("default configuredAPIKey = %q, want empty", got)
+	}
+	payload, errMarshal := json.Marshal(map[string][]byte{"config_yaml": []byte("api-key:  sk-zai-team-key-12345  \n")})
+	if errMarshal != nil {
+		t.Fatalf("marshal: %v", errMarshal)
+	}
+	reg, errHandle := handleCall("plugin.register", payload)
+	if errHandle != nil {
+		t.Fatalf("register failed: %v", errHandle)
+	}
+	if got := configuredAPIKey(); got != "sk-zai-team-key-12345" {
+		t.Fatalf("configuredAPIKey = %q, want sk-zai-team-key-12345", got)
+	}
+	var envelope struct {
+		Result struct {
+			Metadata struct {
+				ConfigFields []struct {
+					Name string `json:"Name"`
+					Type string `json:"Type"`
+				} `json:"ConfigFields"`
+			} `json:"metadata"`
+		} `json:"result"`
+	}
+	if errUnmarshal := json.Unmarshal(reg, &envelope); errUnmarshal != nil {
+		t.Fatalf("decode registration: %v", errUnmarshal)
+	}
+	found := false
+	for _, field := range envelope.Result.Metadata.ConfigFields {
+		if field.Name == "api-key" {
+			found = field.Type == "string"
+		}
+	}
+	if !found {
+		t.Fatalf("api-key config field not declared: %s", reg)
+	}
+}
+
 // Acceptance: a broken configured timezone surfaces as a history request
 // error — never a silent fallback to the server timezone.
 func TestPluginConfigInvalidTimezoneFailsRequest(t *testing.T) {

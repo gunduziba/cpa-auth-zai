@@ -62,7 +62,7 @@ func handleModelStatic([]byte) (any, error) {
 }
 
 // handleModelForAuth loads the account catalog with the business token derived
-// from OAuth login. It has no fixed-model fallback.
+// from OAuth login or the direct API key. It has no fixed-model fallback.
 func handleModelForAuth(payload []byte) (any, error) {
 	var request struct {
 		AuthID         string `json:"AuthID"`
@@ -78,7 +78,10 @@ func handleModelForAuth(payload []byte) (any, error) {
 	}
 	token := strings.TrimSpace(storage.BizAccessToken)
 	if token == "" {
-		return nil, fmt.Errorf("zai: business access token is required for model discovery")
+		token = strings.TrimSpace(storage.APIKey)
+	}
+	if token == "" {
+		return nil, fmt.Errorf("zai: business access token or api key is required for model discovery")
 	}
 	response, errDo := hostDo(request.HostCallbackID, http.MethodGet, codingModelsURL,
 		map[string][]string{"Accept": {"application/json"}, "Authorization": {"Bearer " + token}}, nil)
